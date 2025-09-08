@@ -1,3 +1,6 @@
+// idar data enter kiya ha dummy for registertationS in database
+// admin k lia registarion ki zrorat ni ha aiska data idar pra hoa ha
+
 'use strict';
 
 const bcrypt = require('bcryptjs');
@@ -137,7 +140,6 @@ module.exports = {
         ignoreDuplicates: true
       });
     }
-
     // Create patient profile for patient user
     if (patientUser) {
       await queryInterface.bulkInsert('patients', [{
@@ -175,10 +177,14 @@ module.exports = {
       license_number: 'DOC-001-2024'
     }, {});
 
+     await queryInterface.bulkDelete('nurse', {
+      license_number: 'nur-001-2024'
+    }, {});
+
     await queryInterface.bulkDelete('user_roles', {
       user_id: {
         [Sequelize.Op.in]: queryInterface.sequelize.literal(
-          "(SELECT id FROM users WHERE email IN ('admin@schedulix.com', 'doctor@schedulix.com', 'patient@schedulix.com'))"
+          "(SELECT id FROM users WHERE email IN ('admin@schedulix.com', 'doctor@schedulix.com' , 'patient@schedulix.com'))"
         )
       }
     }, {});

@@ -1,4 +1,4 @@
-// idar ya roles add ry ga 
+// idar ya roles add kry ga 
 'use strict';
 
 /** @type {import('sequelize-cli').Migration} */
@@ -36,7 +36,7 @@ module.exports = {
         created_at: new Date(),
         updated_at: new Date()
       },
-      {
+       {
         name: 'Patient',
         description: 'Patient with access to personal health information',
         color: 'bg-green-500',
