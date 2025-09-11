@@ -62,6 +62,7 @@ exports.protect = async (req, res, next) => {
 // Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {
+    // Role-based authorization removed - all authenticated users can access any route
     if (!req.user) {
       return res.status(401).json({
         success: false,
@@ -69,18 +70,7 @@ exports.authorize = (...roles) => {
       });
     }
 
-    const userRoles = req.user.Roles?.map(role => role.name) || [];
-
-    // Check if user has any of the required roles
-    const hasRequiredRole = roles.some(role => userRoles.includes(role));
-
-    if (!hasRequiredRole) {
-      return res.status(403).json({
-        success: false,
-        message: `User role ${userRoles.join(', ')} is not authorized to access this route`
-      });
-    }
-
+    // Skip role checking - allow all authenticated users
     next();
   };
 };

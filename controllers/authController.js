@@ -199,6 +199,7 @@ const login = async (req, res, next) => {
       }
     }
 
+    console.log("================================userData==========================================",userData);
     res.status(200).json({
       success: true,
       message: 'Login successful',

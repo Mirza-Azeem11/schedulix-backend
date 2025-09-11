@@ -469,9 +469,6 @@ module.exports = {
       }
     });
 
-    // Add remaining tables (messages, invoices, payments, etc.)
-    // ... (continuing with other tables based on schema.md)
-
     // Add indexes
     await queryInterface.addIndex('users', ['email']);
     await queryInterface.addIndex('users', ['status']);

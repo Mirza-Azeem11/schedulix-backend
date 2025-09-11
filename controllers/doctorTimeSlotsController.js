@@ -8,14 +8,35 @@ const asyncHandler = require('express-async-handler');
 const getAllTimeSlots = asyncHandler(async (req, res) => {
   try {
     const { doctor_id, day_of_week, date } = req.query;
-    const userRole = req.user.role;
+    const userRoles = req.user.Roles?.map(role => role.name) || [];
+    const hasPatientRole = userRoles.includes('Patient');
+    const hasDoctorRole = userRoles.includes('Doctor');
+    const hasAdminRole = userRoles.includes('Admin') || userRoles.includes('SuperAdmin');
 
     let whereClause = {};
 
     // If user is a doctor, they can only access their own time slots
-    if (userRole === 'Doctor') {
-      whereClause.doctor_id = req.user.doctor_id || req.user.id;
-    } else if (doctor_id) {
+    // if (hasDoctorRole && !hasAdminRole) {
+    //   whereClause.doctor_id = req.user.doctor_id || req.user.id;
+    // }
+    if (hasDoctorRole && !hasAdminRole) {
+      // Look up doctor record by user_id
+      const doctor = await Doctor.findOne({ where: { user_id: req.user.id } });
+      if (doctor) {
+        whereClause.doctor_id = doctor.id;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Doctor record not found for this user'
+        });
+      }
+    }
+    // If user is a patient, they can view all active time slots
+    else if (hasPatientRole) {
+      whereClause.is_active = true;
+    }
+    // Admin users can see all, apply doctor filter if specified
+    else if (doctor_id) {
       whereClause.doctor_id = doctor_id;
     }
 
@@ -75,7 +96,7 @@ const getAvailableTimeSlots = asyncHandler(async (req, res) => {
       where: {
         doctor_id: doctor_id,
         day_of_week: dayOfWeek,
-        is_available: true,
+        is_active: true,
         [Op.or]: [
           { specific_date: date },
           { is_recurring: true, specific_date: null }
@@ -138,14 +159,45 @@ const createTimeSlot = asyncHandler(async (req, res) => {
       specific_date,
       notes
     } = req.body;
+    console.log('req.user in createTimeSlot:', req.user);
 
-    const userRole = req.user.role;
+    // Get user roles properly
+    let userRoles = [];
+    if (req.user.Roles && Array.isArray(req.user.Roles)) {
+      userRoles = req.user.Roles.map(role => role.name);
+    } else if (req.user.roles && Array.isArray(req.user.roles)) {
+      userRoles = req.user.roles;
+    }
+
+    const isDoctor = userRoles.includes('Doctor');
+    const isAdmin = userRoles.includes('Admin') || userRoles.includes('SuperAdmin');
+
+    // Debug logging to understand the issue
+    console.log('User object:', {
+      id: req.user.id,
+      user_id: req.user.user_id,
+      doctor_id: req.user.doctor_id,
+      roles: userRoles
+    });
+
     let targetDoctorId = doctor_id;
 
     // If user is a doctor, they can only create slots for themselves
-    if (userRole === 'Doctor') {
-      targetDoctorId = req.user.doctor_id || req.user.id;
+    if (isDoctor && !isAdmin) {
+      // Look up the doctor record using the user_id
+      const doctor = await Doctor.findOne({ where: { user_id: req.user.id } });
+
+      if (doctor) {
+        targetDoctorId = doctor.id;
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Doctor record not found for this user. Please contact support.'
+        });
+      }
     }
+
+    console.log('Final targetDoctorId:', targetDoctorId);
 
     // Validate required fields
     if (!targetDoctorId || !day_of_week || !start_time || !end_time) {
@@ -221,7 +273,17 @@ const createTimeSlot = asyncHandler(async (req, res) => {
 const updateTimeSlot = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const userRole = req.user.role;
+
+    // Get user roles properly
+    let userRoles = [];
+    if (req.user.Roles && Array.isArray(req.user.Roles)) {
+      userRoles = req.user.Roles.map(role => role.name);
+    } else if (req.user.roles && Array.isArray(req.user.roles)) {
+      userRoles = req.user.roles;
+    }
+
+    const isDoctor = userRoles.includes('Doctor');
+    const isAdmin = userRoles.includes('Admin') || userRoles.includes('SuperAdmin');
 
     const timeSlot = await DoctorTimeSlot.findByPk(id);
 
@@ -233,7 +295,7 @@ const updateTimeSlot = asyncHandler(async (req, res) => {
     }
 
     // Check if doctor can modify this time slot
-    if (userRole === 'Doctor') {
+    if (isDoctor && !isAdmin) {
       const doctorId = req.user.doctor_id || req.user.id;
       if (timeSlot.doctor_id !== doctorId) {
         return res.status(403).json({
@@ -264,7 +326,17 @@ const updateTimeSlot = asyncHandler(async (req, res) => {
 const deleteTimeSlot = asyncHandler(async (req, res) => {
   try {
     const { id } = req.params;
-    const userRole = req.user.role;
+
+    // Get user roles properly
+    let userRoles = [];
+    if (req.user.Roles && Array.isArray(req.user.Roles)) {
+      userRoles = req.user.Roles.map(role => role.name);
+    } else if (req.user.roles && Array.isArray(req.user.roles)) {
+      userRoles = req.user.roles;
+    }
+
+    const isDoctor = userRoles.includes('Doctor');
+    const isAdmin = userRoles.includes('Admin') || userRoles.includes('SuperAdmin');
 
     const timeSlot = await DoctorTimeSlot.findByPk(id);
 
@@ -276,7 +348,7 @@ const deleteTimeSlot = asyncHandler(async (req, res) => {
     }
 
     // Check if doctor can delete this time slot
-    if (userRole === 'Doctor') {
+    if (isDoctor && !isAdmin) {
       const doctorId = req.user.doctor_id || req.user.id;
       if (timeSlot.doctor_id !== doctorId) {
         return res.status(403).json({
@@ -307,10 +379,20 @@ const deleteTimeSlot = asyncHandler(async (req, res) => {
 const bulkCreateTimeSlots = asyncHandler(async (req, res) => {
   try {
     const { doctor_id, schedule } = req.body;
-    const userRole = req.user.role;
+
+    // Get user roles properly
+    let userRoles = [];
+    if (req.user.Roles && Array.isArray(req.user.Roles)) {
+      userRoles = req.user.Roles.map(role => role.name);
+    } else if (req.user.roles && Array.isArray(req.user.roles)) {
+      userRoles = req.user.roles;
+    }
+
+    const isDoctor = userRoles.includes('Doctor');
+    const isAdmin = userRoles.includes('Admin') || userRoles.includes('SuperAdmin');
 
     let targetDoctorId = doctor_id;
-    if (userRole === 'Doctor') {
+    if (isDoctor && !isAdmin) {
       targetDoctorId = req.user.doctor_id || req.user.id;
     }
 

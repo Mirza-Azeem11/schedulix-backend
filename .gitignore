@@ -116,9 +116,3 @@ public/uploads/
 # Temporary files
 tmp/
 temp/
-apis.json
-schema.md
-createTestPatients.js
-resetDatabase.js
-simpleTest.js
-testConnection.js
