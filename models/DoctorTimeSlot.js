@@ -7,6 +7,14 @@ const DoctorTimeSlot = sequelize.define('DoctorTimeSlot', {
     primaryKey: true,
     autoIncrement: true
   },
+  tenant_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tenants',
+      key: 'id'
+    }
+  },
   doctor_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -63,6 +71,11 @@ const DoctorTimeSlot = sequelize.define('DoctorTimeSlot', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
+  scopes: {
+    tenant: (tenantId) => ({
+      where: { tenant_id: tenantId }
+    })
+  },
   indexes: [
     {
       fields: ['doctor_id', 'day_of_week']

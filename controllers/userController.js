@@ -1,5 +1,5 @@
 const { validationResult } = require('express-validator');
-const { User, Role, Doctor, Patient ,UserRole} = require('../models');
+const { User, Role, Doctor, Patient, UserRole } = require('../models');
 
 // @desc    Get all users
 // @route   GET /api/users
@@ -9,7 +9,12 @@ const getUsers = async (req, res, next) => {
     const { page = 1, limit = 10, status, role } = req.query;
     const offset = (page - 1) * limit;
 
+    // Multi-tenancy: Filter by tenant_id
     const whereClause = {};
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
     if (status) whereClause.status = status;
 
     const includeClause = [{
@@ -53,24 +58,22 @@ const getUsers = async (req, res, next) => {
 
 // @desc    Get single user
 // @route   GET /api/users/:id
-// @access  Private
+// @access  Private (Admin only)
 const getUser = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.params.id, {
-      include: [
-        {
-          model: Role,
-          through: { attributes: [] }
-        },
-        {
-          model: Doctor,
-          required: false
-        },
-        {
-          model: Patient,
-          required: false
-        }
-      ],
+    const whereClause = { id: req.params.id };
+
+    // Multi-tenancy: Filter by tenant_id
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const user = await User.findOne({
+      where: whereClause,
+      include: [{
+        model: Role,
+        through: { attributes: [] }
+      }],
       attributes: { exclude: ['password_hash'] }
     });
 
@@ -128,7 +131,8 @@ const createUser = async (req, res, next) => {
       last_name,
       phone,
       date_of_birth,
-      gender
+      gender,
+      tenant_id: req.user.tenant_id // Set tenant_id from logged-in user
     });
 
     // Assign roles if provided

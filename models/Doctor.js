@@ -7,6 +7,14 @@ const Doctor = sequelize.define('Doctor', {
     primaryKey: true,
     autoIncrement: true
   },
+  tenant_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tenants',
+      key: 'id'
+    }
+  },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -65,6 +73,26 @@ const Doctor = sequelize.define('Doctor', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  approval_status: {
+    type: DataTypes.ENUM('Pending', 'Approved', 'Rejected'),
+    defaultValue: 'Pending'
+  },
+  approval_date: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  approved_by: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'users',
+      key: 'id'
+    }
+  },
+  rejection_reason: {
+    type: DataTypes.TEXT,
+    allowNull: true
+  },
   availability_status: {
     type: DataTypes.ENUM('Available', 'Busy', 'Offline'),
     defaultValue: 'Available'
@@ -74,6 +102,11 @@ const Doctor = sequelize.define('Doctor', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
+  scopes: {
+    tenant: (tenantId) => ({
+      where: { tenant_id: tenantId }
+    })
+  },
   indexes: [
     { fields: ['specialization'] },
     { fields: ['rating'] },

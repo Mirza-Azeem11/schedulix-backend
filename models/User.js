@@ -9,6 +9,14 @@ const User = sequelize.define('User', {
     primaryKey: true,
     autoIncrement: true
   },
+  tenant_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tenants',
+      key: 'id'
+    }
+  },
   email: {
     type: DataTypes.STRING(255),
     allowNull: false,
@@ -66,6 +74,17 @@ const User = sequelize.define('User', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
+  defaultScope: {
+    attributes: { exclude: ['password_hash'] }
+  },
+  scopes: {
+    withPassword: {
+      attributes: { include: ['password_hash'] }
+    },
+    tenant: (tenantId) => ({
+      where: { tenant_id: tenantId }
+    })
+  },
   indexes: [
     { fields: ['status'] },
     { fields: ['created_at'] }
@@ -74,7 +93,10 @@ const User = sequelize.define('User', {
 
 // Instance methods
 User.prototype.getSignedJwtToken = function() {
-  return jwt.sign({ id: this.id }, process.env.JWT_SECRET, {
+  return jwt.sign({
+    id: this.id,
+    tenant_id: this.tenant_id
+  }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE
   });
 };

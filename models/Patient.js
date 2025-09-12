@@ -7,9 +7,17 @@ const Patient = sequelize.define('Patient', {
     primaryKey: true,
     autoIncrement: true
   },
+  tenant_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tenants',
+      key: 'id'
+    }
+  },
   user_id: {
     type: DataTypes.INTEGER,
-    allowNull: true,
+    allowNull: false,
     unique: true,
     references: {
       model: 'users',
@@ -100,6 +108,11 @@ const Patient = sequelize.define('Patient', {
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
+  scopes: {
+    tenant: (tenantId) => ({
+      where: { tenant_id: tenantId }
+    })
+  },
   indexes: [
     { fields: ['patient_code'] },
     { fields: ['status'] },

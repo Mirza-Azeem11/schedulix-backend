@@ -18,19 +18,15 @@ const getPatients = async (req, res, next) => {
     } = req.query;
     const offset = (page - 1) * limit;
 
+    // Multi-tenancy: Filter by tenant_id
     const whereClause = {};
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
     if (status) whereClause.status = status;
     if (registered_by) whereClause.registered_by = registered_by;
-
-    // For debugging: temporarily allow fetching all patients if no specific filter
-    // Comment this out in production and uncomment the line below
-    if (doctor_id) {
-      // For now, get all patients to debug the issue
-      console.log('Doctor ID received:', doctor_id);
-      console.log('Current whereClause:', whereClause);
-    }
-    // Production line (uncomment this and remove the debug block above):
-    // if (doctor_id) whereClause.registered_by = doctor_id;
+    if (doctor_id) whereClause.registered_by = doctor_id;
 
     const userWhereClause = {};
     if (search) {
@@ -41,38 +37,25 @@ const getPatients = async (req, res, next) => {
       ];
     }
 
+    // Add tenant filter to user include
+    if (req.user && req.user.tenant_id) {
+      userWhereClause.tenant_id = req.user.tenant_id;
+    }
+
     const { count, rows: patients } = await Patient.findAndCountAll({
       where: whereClause,
       include: [
         {
           model: User,
-          where: Object.keys(userWhereClause).length ? userWhereClause : undefined,
+          where: Object.keys(userWhereClause).length ? userWhereClause : (req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : undefined),
           required: false,
           attributes: { exclude: ['password_hash'] }
-        },
-        {
-          model: Doctor,
-          as: 'RegisteredBy',
-          include: [{ model: User, attributes: ['first_name', 'last_name'] }],
-          required: false
         }
       ],
       limit: parseInt(limit),
       offset: parseInt(offset),
       order: [['created_at', 'DESC']]
     });
-
-    console.log('Found patients:', patients.length);
-    console.log('Patients data:', patients.map(p => ({
-      id: p.id,
-      patient_code: p.patient_code,
-      user: p.User ? {
-        first_name: p.User.first_name,
-        last_name: p.User.last_name,
-        email: p.User.email
-      } : null,
-      registered_by: p.registered_by
-    })));
 
     res.status(200).json({
       success: true,
@@ -87,7 +70,6 @@ const getPatients = async (req, res, next) => {
       }
     });
   } catch (error) {
-    console.error('Error in getPatients:', error);
     next(error);
   }
 };
@@ -97,16 +79,25 @@ const getPatients = async (req, res, next) => {
 // @access  Private (Doctor/Admin)
 const getPatient = async (req, res, next) => {
   try {
-    const patient = await Patient.findByPk(req.params.id, {
+    const whereClause = { id: req.params.id };
+
+    // Multi-tenancy: Filter by tenant_id
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const userWhereClause = {};
+    if (req.user && req.user.tenant_id) {
+      userWhereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const patient = await Patient.findOne({
+      where: whereClause,
       include: [
         {
           model: User,
+          where: Object.keys(userWhereClause).length ? userWhereClause : undefined,
           attributes: { exclude: ['password_hash'] }
-        },
-        {
-          model: Doctor,
-          as: 'RegisteredBy',
-          include: [{ model: User, attributes: ['first_name', 'last_name'] }]
         }
       ]
     });
@@ -204,7 +195,8 @@ const createPatient = async (req, res, next) => {
       state,
       postal_code,
       country,
-      registered_by
+      registered_by,
+      tenant_id: req.user.tenant_id // Set tenant_id from the authenticated user
     });
 
     const newPatient = await Patient.findByPk(patient.id, {

@@ -1,14 +1,17 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/errorMiddleware');
+const { protect, authorize } = require('../middleware/authMiddleware');
 const {
   getDoctors,
   getDoctor,
   createDoctor,
   updateDoctor,
   getDoctorAppointments,
-  deleteDoctor
+  deleteDoctor,
+  getPendingRegistrations,
+  approveDoctor,
+  rejectDoctor
 } = require('../controllers/doctorController');
 
 // Validation rules
@@ -38,11 +41,14 @@ const updateDoctorValidation = [
 ];
 
 // Routes
-router.get('/', getDoctors);
-router.get('/:id', getDoctor);
+router.get('/', protect, getDoctors);
+router.get('/:id', protect, getDoctor);
 router.get('/:id/appointments', protect, getDoctorAppointments);
 router.post('/', protect, authorize('Admin'), createDoctorValidation, createDoctor);
 router.put('/:id', protect, updateDoctorValidation, updateDoctor);
 router.delete('/:id', protect, authorize('Admin'), deleteDoctor);
+router.get('/pending-registrations', protect, authorize('Admin'), getPendingRegistrations);
+router.put('/approve/:id', protect, authorize('Admin'), approveDoctor);
+router.put('/reject/:id', protect, authorize('Admin'), rejectDoctor);
 
 module.exports = router;

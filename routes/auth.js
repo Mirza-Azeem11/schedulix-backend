@@ -1,13 +1,15 @@
 const express = require('express');
 const { body } = require('express-validator');
 const router = express.Router();
-const { protect } = require('../middleware/errorMiddleware');
+const { protect } = require('../middleware/authMiddleware');
 const {
   register,
   login,
   getMe,
   updateProfile,
-  changePassword
+  changePassword,
+  getOrganizations,
+  registerDoctor
 } = require('../controllers/authController');
 
 // Validation rules
@@ -43,6 +45,32 @@ const registerValidation = [
   body('insurance_policy_number').optional()
 ];
 
+// Validation rules for doctor registration
+const doctorRegistrationValidation = [
+  // Personal info validation
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('first_name').notEmpty().trim().withMessage('First name is required'),
+  body('last_name').notEmpty().trim().withMessage('Last name is required'),
+  body('phone').optional().matches(/^[\+]?[1-9][\d]{0,15}$/).withMessage('Please provide a valid phone number'),
+  body('date_of_birth').optional().isISO8601().withMessage('Please provide a valid date'),
+  body('gender').optional().isIn(['Male', 'Female', 'Other']).withMessage('Invalid gender'),
+
+  // Organization selection
+  body('tenant_id').isInt().withMessage('Please select a healthcare organization'),
+
+  // Doctor-specific validation
+  body('license_number').notEmpty().trim().withMessage('License number is required'),
+  body('specialization').notEmpty().trim().withMessage('Specialization is required'),
+  body('qualification').optional().trim(),
+  body('experience_years').optional().isInt({ min: 0 }).withMessage('Experience years must be a positive integer'),
+  body('consultation_fee').optional().isFloat({ min: 0 }).withMessage('Consultation fee must be a positive number'),
+  body('bio').optional().trim(),
+  body('office_address').optional().trim(),
+  body('consultation_hours').optional(),
+  body('languages_spoken').optional()
+];
+
 const loginValidation = [
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').notEmpty().withMessage('Password is required')
@@ -68,5 +96,7 @@ router.post('/login', loginValidation, login);
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfileValidation, updateProfile);
 router.put('/change-password', protect, changePasswordValidation, changePassword);
+router.get('/organizations', getOrganizations); // Public endpoint for doctor registration
+router.post('/register-doctor', doctorRegistrationValidation, registerDoctor);
 
 module.exports = router;

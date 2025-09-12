@@ -8,6 +8,7 @@ require('dotenv').config();
 const db = require('./config/db');
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorMiddleware');
+const { initMultiTenancy } = require('./scripts/initMultiTenancy');
 
 const app = express();
 
@@ -43,7 +44,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// API routes
+// API routes (removed global multi-tenancy middleware)
 app.use('/api', routes);
 
 // Error handling middleware
@@ -59,11 +60,18 @@ const startServer = async () => {
     await db.authenticate();
     console.log('✅ Database connection established successfully.');
 
-    // Sync database models (in development)
+    // Sync database models (creates/updates tables)
     if (process.env.NODE_ENV === 'development') {
-      // Use force: false and alter: false to avoid index conflicts
-      await db.sync({ force: false, alter: false });
-      console.log('✅ Database models synchronized.');
+      await db.sync({ alter: true });
+      console.log('✅ Database synchronized successfully.');
+    }
+
+    // Initialize multi-tenancy safely
+    try {
+      await initMultiTenancy();
+    } catch (error) {
+      console.error('❌ Multi-tenancy initialization failed:', error.message);
+      // Continue anyway for development
     }
 
     // Start server

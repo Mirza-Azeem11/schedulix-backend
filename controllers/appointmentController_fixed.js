@@ -79,25 +79,25 @@ const getAppointments = async (req, res, next) => {
           include: [{
             model: User,
             attributes: ['first_name', 'last_name', 'phone'],
-            ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+            where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
           }],
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         },
         {
           model: Doctor,
           include: [{
             model: User,
             attributes: ['first_name', 'last_name'],
-            ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+            where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
           }],
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         },
         {
           model: User,
           as: 'CreatedBy',
           attributes: ['first_name', 'last_name'],
           required: false,
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         }
       ],
       limit: parseInt(limit),
@@ -142,32 +142,32 @@ const getAppointment = async (req, res, next) => {
           include: [{
             model: User,
             attributes: { exclude: ['password_hash'] },
-            ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+            where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
           }],
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         },
         {
           model: Doctor,
           include: [{
             model: User,
             attributes: { exclude: ['password_hash'] },
-            ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+            where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
           }],
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         },
         {
           model: User,
           as: 'CreatedBy',
           attributes: ['first_name', 'last_name'],
           required: false,
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         },
         {
           model: User,
           as: 'CancelledBy',
           attributes: ['first_name', 'last_name'],
           required: false,
-          ...(req.user && req.user.tenant_id ? { where: { tenant_id: req.user.tenant_id } } : {})
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
         }
       ]
     });
@@ -218,149 +218,6 @@ const getAppointment = async (req, res, next) => {
 // @desc    Create new appointment
 // @route   POST /api/appointments
 // @access  Private
-// const createAppointment = async (req, res, next) => {
-//   try {
-//     const errors = validationResult(req);
-//     if (!errors.isEmpty()) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Validation failed',
-//         errors: errors.array()
-//       });
-//     }
-//
-//     const {
-//       patient_id,
-//       doctor_id,
-//       appointment_date,
-//       appointment_time,
-//       duration_minutes = 30,
-//       appointment_type,
-//       consultation_type = 'In-Person',
-//       reason,
-//       notes,
-//       priority = 'Normal',
-//       location,
-//       meeting_link
-//     } = req.body;
-//
-//     // Verify patient and doctor exist and belong to the same tenant
-//     const patient = await Patient.findOne({
-//       where: {
-//         id: patient_id,
-//         tenant_id: req.user.tenant_id
-//       }
-//     });
-//
-//     const doctor = await Doctor.findOne({
-//       where: {
-//         id: doctor_id,
-//         tenant_id: req.user.tenant_id
-//       }
-//     });
-//
-//     if (!patient) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Patient not found'
-//       });
-//     }
-//
-//     if (!doctor) {
-//       return res.status(404).json({
-//         success: false,
-//         message: 'Doctor not found'
-//       });
-//     }
-//
-//     // Check for conflicts
-//     const appointmentDateTime = moment(`${appointment_date} ${appointment_time}`);
-//     const appointmentEndTime = appointmentDateTime.clone().add(duration_minutes, 'minutes');
-//
-//     // Build where clause for conflict checking
-//     const conflictWhereClause = {
-//       doctor_id,
-//       appointment_date,
-//       status: { [Op.in]: ['Scheduled', 'Confirmed', 'In_Progress'] },
-//       [Op.or]: [
-//         {
-//           appointment_time: {
-//             [Op.between]: [appointment_time, appointmentEndTime.format('HH:mm')]
-//           }
-//         },
-//         {
-//           [Op.and]: [
-//             { appointment_time: { [Op.lte]: appointment_time } },
-//             {
-//               [Op.literal]: `TIME(ADDTIME(appointment_time, CONCAT(duration_minutes, ':00'))) > '${appointment_time}'`
-//             }
-//           ]
-//         }
-//       ]
-//     };
-//
-//     // Only add tenant_id filter if it exists
-//     if (req.user && req.user.tenant_id) {
-//       conflictWhereClause.tenant_id = req.user.tenant_id;
-//     }
-//
-//     const conflictingAppointments = await Appointment.findAll({
-//       where: conflictWhereClause
-//     });
-//
-//     if (conflictingAppointments.length > 0) {
-//       return res.status(400).json({
-//         success: false,
-//         message: 'Doctor is not available at the selected time'
-//       });
-//     }
-//
-//     const appointment = await Appointment.create({
-//       patient_id,
-//       doctor_id,
-//       appointment_date,
-//       appointment_time,
-//       duration_minutes,
-//       appointment_type,
-//       consultation_type,
-//       reason,
-//       notes,
-//       priority,
-//       location,
-//       meeting_link,
-//       status: 'Scheduled',
-//       created_by: req.user.id,
-//       tenant_id: req.user.tenant_id // Set tenant_id
-//     });
-//
-//     const newAppointment = await Appointment.findByPk(appointment.id, {
-//       include: [
-//         {
-//           model: Patient,
-//           include: [{ model: User, attributes: ['first_name', 'last_name', 'phone'] }]
-//         },
-//         {
-//           model: Doctor,
-//           include: [{ model: User, attributes: ['first_name', 'last_name'] }]
-//         },
-//         {
-//           model: User,
-//           as: 'CreatedBy',
-//           attributes: ['first_name', 'last_name']
-//         }
-//       ]
-//     });
-//
-//     res.status(201).json({
-//       success: true,
-//       message: 'Appointment created successfully',
-//       data: { appointment: newAppointment }
-//     });
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
 const createAppointment = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -387,44 +244,62 @@ const createAppointment = async (req, res, next) => {
       meeting_link
     } = req.body;
 
-    console.log("yesjksjkkjsk===========");
-    // ✅ Verify patient and doctor exist and belong to the same tenant
+    // Verify patient and doctor exist and belong to the same tenant
     const patient = await Patient.findOne({
-      where: { id: patient_id, tenant_id: req.user.tenant_id }
+      where: {
+        id: patient_id,
+        tenant_id: req.user.tenant_id
+      }
     });
+
     const doctor = await Doctor.findOne({
-      where: { id: doctor_id, tenant_id: req.user.tenant_id }
+      where: {
+        id: doctor_id,
+        tenant_id: req.user.tenant_id
+      }
     });
 
     if (!patient) {
-      return res.status(404).json({ success: false, message: 'Patient not found' });
-    }
-    if (!doctor) {
-      return res.status(404).json({ success: false, message: 'Doctor not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Patient not found'
+      });
     }
 
-    // ✅ Check for conflicts
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Doctor not found'
+      });
+    }
+
+    // Check for conflicts
     const appointmentDateTime = moment(`${appointment_date} ${appointment_time}`);
     const appointmentEndTime = appointmentDateTime.clone().add(duration_minutes, 'minutes');
-    console.log("ffindall=========",req.user);
 
-    const conflictWhereClause = {
-      doctor_id,
-      appointment_date,
-      status: { [Op.in]: ['Scheduled', 'Confirmed', 'In_Progress'] },
-      [Op.and]: [
-        { appointment_time: { [Op.lt]: appointmentEndTime.format('HH:mm') } },
-        literal(`ADDTIME(appointment_time, SEC_TO_TIME(duration_minutes * 60)) > '${appointment_time}'`)
-      ]
-    };
-
-
-
-    if (req.user && req.user.tenant_id) {
-      conflictWhereClause.tenant_id = req.user.tenant_id;
-    }
-
-    const conflictingAppointments = await Appointment.findAll({ where: conflictWhereClause });
+    const conflictingAppointments = await Appointment.findAll({
+      where: {
+        doctor_id,
+        appointment_date,
+        status: { [Op.in]: ['Scheduled', 'Confirmed', 'In_Progress'] },
+        tenant_id: req.user.tenant_id, // Filter by tenant
+        [Op.or]: [
+          {
+            appointment_time: {
+              [Op.between]: [appointment_time, appointmentEndTime.format('HH:mm')]
+            }
+          },
+          {
+            [Op.and]: [
+              { appointment_time: { [Op.lte]: appointment_time } },
+              {
+                [Op.literal]: `TIME(ADDTIME(appointment_time, CONCAT(duration_minutes, ':00'))) > '${appointment_time}'`
+              }
+            ]
+          }
+        ]
+      }
+    });
 
     if (conflictingAppointments.length > 0) {
       return res.status(400).json({
@@ -433,7 +308,6 @@ const createAppointment = async (req, res, next) => {
       });
     }
 
-    // ✅ Create appointment
     const appointment = await Appointment.create({
       patient_id,
       doctor_id,
@@ -449,7 +323,7 @@ const createAppointment = async (req, res, next) => {
       meeting_link,
       status: 'Scheduled',
       created_by: req.user.id,
-      tenant_id: req.user.tenant_id
+      tenant_id: req.user.tenant_id // Set tenant_id
     });
 
     const newAppointment = await Appointment.findByPk(appointment.id, {
@@ -479,6 +353,7 @@ const createAppointment = async (req, res, next) => {
     next(error);
   }
 };
+
 // @desc    Update appointment
 // @route   PUT /api/appointments/:id
 // @access  Private

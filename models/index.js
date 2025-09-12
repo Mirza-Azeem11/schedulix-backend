@@ -14,8 +14,26 @@ const InvoiceItem = require('./InvoiceItem');
 const Payment = require('./Payment');
 const SystemSetting = require('./SystemSetting');
 const Notification = require('./Notification');
+const Tenant = require('./Tenant');
 
-// Define associations according to schema.md
+// Define associations according to schema.md with multi-tenancy
+
+// Tenant associations
+Tenant.hasMany(User, { foreignKey: 'tenant_id' });
+User.belongsTo(Tenant, { foreignKey: 'tenant_id' });
+
+Tenant.hasMany(Doctor, { foreignKey: 'tenant_id' });
+Doctor.belongsTo(Tenant, { foreignKey: 'tenant_id' });
+
+Tenant.hasMany(Patient, { foreignKey: 'tenant_id' });
+Patient.belongsTo(Tenant, { foreignKey: 'tenant_id' });
+
+Tenant.hasMany(Appointment, { foreignKey: 'tenant_id' });
+Appointment.belongsTo(Tenant, { foreignKey: 'tenant_id' });
+
+Tenant.hasMany(DoctorTimeSlot, { foreignKey: 'tenant_id' });
+DoctorTimeSlot.belongsTo(Tenant, { foreignKey: 'tenant_id' });
+
 // User associations
 User.belongsToMany(Role, { through: UserRole, foreignKey: 'user_id' });
 Role.belongsToMany(User, { through: UserRole, foreignKey: 'role_id' });
@@ -78,6 +96,7 @@ SystemSetting.belongsTo(User, { as: 'UpdatedBy', foreignKey: 'updated_by' });
 // Notification associations
 Notification.belongsTo(User, { foreignKey: 'user_id' });
 
+// Export all models including Tenant
 module.exports = {
   sequelize,
   User,
@@ -92,5 +111,6 @@ module.exports = {
   InvoiceItem,
   Payment,
   SystemSetting,
-  Notification
+  Notification,
+  Tenant
 };

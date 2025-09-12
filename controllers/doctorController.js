@@ -17,7 +17,12 @@ const getDoctors = async (req, res, next) => {
     } = req.query;
     const offset = (page - 1) * limit;
 
+    // Multi-tenancy: Filter by tenant_id if user is authenticated
     const whereClause = {};
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
     if (specialization) whereClause.specialization = { [Op.like]: `%${specialization}%` };
     if (verified !== undefined) whereClause.verified = verified === 'true';
     if (availability_status) whereClause.availability_status = availability_status;
@@ -28,6 +33,11 @@ const getDoctors = async (req, res, next) => {
         { first_name: { [Op.like]: `%${search}%` } },
         { last_name: { [Op.like]: `%${search}%` } }
       ];
+    }
+
+    // Add tenant filter to user include if authenticated
+    if (req.user && req.user.tenant_id) {
+      userWhereClause.tenant_id = req.user.tenant_id;
     }
 
     const { count, rows: doctors } = await Doctor.findAndCountAll({
@@ -64,9 +74,23 @@ const getDoctors = async (req, res, next) => {
 // @access  Public
 const getDoctor = async (req, res, next) => {
   try {
-    const doctor = await Doctor.findByPk(req.params.id, {
+    const whereClause = { id: req.params.id };
+
+    // Multi-tenancy: Filter by tenant_id if user is authenticated
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const userWhereClause = {};
+    if (req.user && req.user.tenant_id) {
+      userWhereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const doctor = await Doctor.findOne({
+      where: whereClause,
       include: [{
         model: User,
+        where: Object.keys(userWhereClause).length ? userWhereClause : undefined,
         attributes: { exclude: ['password_hash'] }
       }]
     });
@@ -213,7 +237,8 @@ const updateDoctor = async (req, res, next) => {
       office_address,
       consultation_hours,
       languages_spoken,
-      availability_status
+      availability_status,
+      approval_status
     } = req.body;
 
     await doctor.update({
@@ -225,7 +250,8 @@ const updateDoctor = async (req, res, next) => {
       office_address: office_address || doctor.office_address,
       consultation_hours: consultation_hours || doctor.consultation_hours,
       languages_spoken: languages_spoken || doctor.languages_spoken,
-      availability_status: availability_status || doctor.availability_status
+      availability_status: availability_status || doctor.availability_status,
+      approval_status: approval_status || doctor.approval_status
     });
 
     const updatedDoctor = await Doctor.findByPk(doctor.id, {
@@ -328,11 +354,172 @@ const deleteDoctor = async (req, res, next) => {
   }
 };
 
+// @desc    Get pending doctor registrations for admin approval
+// @route   GET /api/doctors/pending
+// @access  Private (Admin only)
+const getPendingRegistrations = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 10 } = req.query;
+    const offset = (page - 1) * limit;
+
+    // Multi-tenancy: Filter by tenant_id
+    const whereClause = {
+      approval_status: 'Pending'
+    };
+
+    if (req.user && req.user.tenant_id) {
+      whereClause.tenant_id = req.user.tenant_id;
+    }
+
+    const { count, rows: pendingDoctors } = await Doctor.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          attributes: { exclude: ['password_hash'] },
+          where: req.user && req.user.tenant_id ? { tenant_id: req.user.tenant_id } : {}
+        }
+      ],
+      limit: parseInt(limit),
+      offset: parseInt(offset),
+      order: [['created_at', 'DESC']]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        pending_registrations: pendingDoctors,
+        pagination: {
+          current_page: parseInt(page),
+          total_pages: Math.ceil(count / limit),
+          total_records: count,
+          per_page: parseInt(limit)
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Approve doctor registration
+// @route   PUT /api/doctors/approve/:id
+// @access  Private (Admin only)
+const approveDoctor = async (req, res, next) => {
+  try {
+    const doctorId = req.params.id;
+
+    // Find doctor with tenant filtering
+    const doctor = await Doctor.findOne({
+      where: {
+        id: doctorId,
+        tenant_id: req.user.tenant_id,
+        approval_status: 'Pending'
+      },
+      include: [{ model: User, attributes: { exclude: ['password_hash'] } }]
+    });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending doctor registration not found'
+      });
+    }
+
+    // Update doctor approval status
+    await doctor.update({
+      approval_status: 'Approved',
+      approved_by: req.user.id,
+      approval_date: new Date(),
+      verified: true
+    });
+
+    // Activate user account
+    await doctor.User.update({
+      status: 'Active'
+    });
+
+    // Fetch updated doctor with user info
+    const approvedDoctor = await Doctor.findByPk(doctor.id, {
+      include: [
+        {
+          model: User,
+          attributes: { exclude: ['password_hash'] }
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Doctor registration approved successfully',
+      data: { doctor: approvedDoctor }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reject doctor registration
+// @route   PUT /api/doctors/reject/:id
+// @access  Private (Admin only)
+const rejectDoctor = async (req, res, next) => {
+  try {
+    const doctorId = req.params.id;
+    const { rejection_reason } = req.body;
+
+    // Find doctor with tenant filtering
+    const doctor = await Doctor.findOne({
+      where: {
+        id: doctorId,
+        tenant_id: req.user.tenant_id,
+        approval_status: 'Pending'
+      },
+      include: [{ model: User, attributes: { exclude: ['password_hash'] } }]
+    });
+
+    if (!doctor) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pending doctor registration not found'
+      });
+    }
+
+    // Update doctor approval status
+    await doctor.update({
+      approval_status: 'Rejected',
+      approved_by: req.user.id,
+      approval_date: new Date(),
+      rejection_reason: rejection_reason || 'No reason provided'
+    });
+
+    // Fetch updated doctor with user info
+    const rejectedDoctor = await Doctor.findByPk(doctor.id, {
+      include: [
+        {
+          model: User,
+          attributes: { exclude: ['password_hash'] }
+        }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Doctor registration rejected',
+      data: { doctor: rejectedDoctor }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getDoctors,
   getDoctor,
   createDoctor,
   updateDoctor,
   getDoctorAppointments,
-  deleteDoctor
+  deleteDoctor,
+  getPendingRegistrations,
+  approveDoctor,
+  rejectDoctor
 };

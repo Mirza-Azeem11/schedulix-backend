@@ -114,12 +114,25 @@ const Appointment = sequelize.define('Appointment', {
       model: 'users',
       key: 'id'
     }
+  },
+  tenant_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+    references: {
+      model: 'tenants',
+      key: 'id'
+    }
   }
 }, {
   tableName: 'appointments',
   timestamps: true,
   createdAt: 'created_at',
   updatedAt: 'updated_at',
+  scopes: {
+    tenant: (tenantId) => ({
+      where: { tenant_id: tenantId }
+    })
+  },
   indexes: [
     { fields: ['appointment_number'] },
     { fields: ['patient_id', 'doctor_id'] },

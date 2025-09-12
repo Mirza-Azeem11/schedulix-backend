@@ -18,9 +18,20 @@ const notificationRoutes = require('./notifications');
 const appointmentReminderRoutes = require('./appointmentReminders');
 const analyticsRoutes = require('./analytics'); // Add analytics routes
 const seederRoutes = require('./seeder');
+const companyRoutes = require('./company');
+
+// Health check route
+router.get('/health', (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'API is healthy',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Route definitions
 router.use('/auth', authRoutes);
+router.use('/company', companyRoutes);
 router.use('/users', userRoutes);
 router.use('/doctors', doctorRoutes);
 router.use('/patients', patientRoutes);
