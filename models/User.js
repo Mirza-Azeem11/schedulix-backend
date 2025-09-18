@@ -78,8 +78,9 @@ const User = sequelize.define('User', {
     attributes: { exclude: ['password_hash'] }
   },
   scopes: {
+    // Explicitly override defaultScope so password_hash is always available
     withPassword: {
-      attributes: { include: ['password_hash'] }
+      attributes: { exclude: [] } // clears exclusion
     },
     tenant: (tenantId) => ({
       where: { tenant_id: tenantId }

@@ -80,7 +80,6 @@ const registerCompany = async (req, res) => {
 
     // Generate temporary password for admin
     const tempPassword = "password123";
-    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
     // Create company settings object
     const companySettings = {
@@ -119,7 +118,7 @@ const registerCompany = async (req, res) => {
     // Create admin user for the company
     const adminUser = await User.create({
       email: admin_email,
-      password_hash: hashedPassword,
+      password_hash: tempPassword,
       first_name: admin_first_name,
       last_name: admin_last_name,
       phone: admin_phone,

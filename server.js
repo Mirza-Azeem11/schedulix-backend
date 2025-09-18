@@ -8,7 +8,6 @@ require('dotenv').config();
 const db = require('./config/db');
 const routes = require('./routes');
 const { errorHandler, notFound } = require('./middleware/errorMiddleware');
-const { initMultiTenancy } = require('./scripts/initMultiTenancy');
 
 const app = express();
 
@@ -65,16 +64,7 @@ const startServer = async () => {
       await db.sync({ alter: true });
       console.log('✅ Database synchronized successfully.');
     }
-
-    // Initialize multi-tenancy safely
-    try {
-      await initMultiTenancy();
-    } catch (error) {
-      console.error('❌ Multi-tenancy initialization failed:', error.message);
-      // Continue anyway for development
-    }
-
-    // Start server
+     // Start server
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📋 Environment: ${process.env.NODE_ENV}`);
